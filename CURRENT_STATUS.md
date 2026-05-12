@@ -22,6 +22,14 @@ The backtest runner recognizes `bidask_candles` and normalizes them into mid-pri
 
 `config/data_manifest.yaml` is supported by the manifest loader for metadata validation and missing-file rejection. A full campaign matrix runner that consumes the manifest end-to-end is still not implemented.
 
+OANDA import support exists at:
+
+```powershell
+python scripts\import_oanda_candles.py --instrument EUR_USD --from 2020-01-01T00:00:00Z --to 2025-12-31T23:00:00Z --granularity H1 --output data\historical\EUR_USD_H1_bidask_2020_2025.csv
+```
+
+The importer requires `OANDA_API_KEY` and defaults `OANDA_ENV` to `practice`.
+
 No real historical market data is present yet. The expected first real dataset is:
 
 ```text

@@ -4,6 +4,25 @@ Current milestone: `DATA_READY_VALIDATED`
 
 First required dataset: `EUR_USD` H1 bid/ask candles from OANDA.
 
+## Option A: Import From OANDA
+
+Set credentials in your shell. Use a practice token unless you explicitly know why you need live data access:
+
+```powershell
+$env:OANDA_API_KEY = "<your-practice-api-token>"
+$env:OANDA_ENV = "practice"
+```
+
+Run the importer:
+
+```powershell
+python scripts\import_oanda_candles.py --instrument EUR_USD --from 2020-01-01T00:00:00Z --to 2025-12-31T23:00:00Z --granularity H1 --output data\historical\EUR_USD_H1_bidask_2020_2025.csv
+```
+
+The importer requests OANDA REST v20 candles with `price=BA`, skips incomplete candles, writes the repo CSV schema, and then runs the validation command below. It reads `OANDA_API_KEY` from the environment; do not put API keys in files.
+
+## Option B: Place An Existing Export
+
 Place the real CSV here:
 
 ```text
