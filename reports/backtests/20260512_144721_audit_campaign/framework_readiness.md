@@ -15,7 +15,7 @@ $env:PYTHONPATH = "$PWD\.test-deps;$PWD\src"
 .\.test-deps\bin\pytest.exe
 ```
 
-Result: `81 passed`
+Result: `92 passed`
 
 Backtest runner help:
 
@@ -39,7 +39,7 @@ Data validator help:
 python scripts\validate_market_data.py --help
 ```
 
-Result: passed.
+Result: passed. Current help includes `--data-kind {auto,quotes,candles,bidask_candles}`.
 
 Mock-data validation:
 
@@ -94,7 +94,7 @@ forex-bot --config config\bot.yaml status
 Backtest runner:
 
 ```powershell
-python scripts\run_backtest.py --config config\bot.yaml --data <csv> --data-kind <quotes|candles|auto> --strategy trend_pullback --output-dir <report_dir>
+python scripts\run_backtest.py --config config\bot.yaml --data <csv> --data-kind <quotes|candles|bidask_candles|auto> --strategy trend_pullback --output-dir <report_dir>
 ```
 
 Walk-forward runner:
@@ -106,7 +106,7 @@ python scripts\run_walkforward.py --config config\bot.yaml --data <candle_csv> -
 Data validator:
 
 ```powershell
-python scripts\validate_market_data.py --data <csv> --data-kind <quotes|candles|auto> --output-dir <validation_report_dir>
+python scripts\validate_market_data.py --data <csv> --data-kind <quotes|candles|bidask_candles|auto> --output-dir <validation_report_dir>
 ```
 
 ## Data Loader Expectations
@@ -141,10 +141,25 @@ Required candle columns:
 - `close`
 - `volume` optional, defaulted to `0` by the runner.
 
+Required bid/ask candle columns:
+
+- `timestamp`
+- `pair` or `symbol`
+- `bid_open`
+- `bid_high`
+- `bid_low`
+- `bid_close`
+- `ask_open`
+- `ask_high`
+- `ask_low`
+- `ask_close`
+- `volume` optional, defaulted to `0` by the runner.
+
 Supported symbol naming:
 
 - Canonical repo symbols use underscores: `EUR_USD`, `GBP_USD`, `USD_JPY`.
 - Loader accepts `pair` or `symbol`.
+- Market-data parsing accepts compact symbols such as `EURUSD` and normalizes them to `EUR_USD`.
 
 Supported timeframes:
 
@@ -154,11 +169,12 @@ Supported timeframes:
 Bid/ask support:
 
 - Quote data supports real bid/ask fields.
-- Candle data does not preserve bid/ask OHLC; the engine synthesizes bid/ask from close and assumed spread.
+- Bid/ask candle data is validated as `bidask_candles` and normalized by the backtest loader into mid-price candles plus a measured close-spread assumption.
+- Plain candle data does not preserve bid/ask OHLC; the engine synthesizes bid/ask from close and assumed spread.
 
 Cost modeling:
 
-- Spread: real bid/ask for quote rows or `--spread-pips` for candle rows.
+- Spread: real bid/ask for quote rows, measured close spread for `bidask_candles`, or `--spread-pips` for plain candle rows.
 - Slippage: `--slippage-pips`.
 - Commission: `--commission-per-trade`.
 - Swap: `--swap-cost-per-trade`, currently a placeholder.
@@ -179,8 +195,8 @@ Timezone handling:
 - Manifest metadata loading exists, but no full campaign matrix runner consumes it end-to-end yet.
 - Walk-forward validation currently requires candle data.
 - No automated full matrix runner exists yet.
-- Bid/ask candle data needs a dedicated loader before audit-grade use.
-- Candle-mode backtests are lower confidence because bid/ask is synthesized.
+- `bidask_candles` validation and loader normalization exist, but the current strategy path still consumes normalized mid-price candles plus a measured average spread assumption.
+- Plain candle-mode backtests are lower confidence because bid/ask is synthesized.
 - Swap, commission, latency, and rejected-order assumptions are still simplified.
 
 ## Ready-To-Run Commands After Data Exists
@@ -189,12 +205,14 @@ Validate one file:
 
 ```powershell
 python scripts\validate_market_data.py --data data\historical\EUR_USD_H1_2020_2025.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports\data_validation\EUR_USD_H1
+python scripts\validate_market_data.py --data data\historical\EUR_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --expected-interval-minutes 60 --output-dir reports\data_validation\EUR_USD_H1_bidask
 ```
 
 Run one smoke backtest:
 
 ```powershell
 python scripts\run_backtest.py --config config\bot.yaml --data data\historical\EUR_USD_H1_2020_2025.csv --data-kind candles --strategy trend_pullback --spread-pips 1.2 --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports\backtests\real_smoke_EUR_USD_H1
+python scripts\run_backtest.py --config config\bot.yaml --data data\historical\EUR_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --strategy trend_pullback --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports\backtests\real_smoke_EUR_USD_H1_bidask
 ```
 
 Run one walk-forward validation:
