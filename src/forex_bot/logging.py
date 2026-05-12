@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Any
 
+STANDARD_LOG_ATTRS = set(logging.makeLogRecord({}).__dict__)
+
 
 class JsonFormatter(logging.Formatter):
     """Small JSON formatter for structured logs."""
@@ -16,6 +18,9 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        for key, value in record.__dict__.items():
+            if key not in STANDARD_LOG_ATTRS and not key.startswith("_"):
+                payload[key] = value
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, sort_keys=True)
