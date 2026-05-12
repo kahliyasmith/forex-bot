@@ -43,7 +43,7 @@ Mock smoke results are stored under `framework_validation/`. They validate plumb
 
 Status: `NOT_READY`
 
-No real historical forex market data files were found. The scripts currently expect an explicit CSV path via `--data`; no populated `data/historical/` directory or data manifest exists yet.
+No real historical forex market data files were found. The scripts can load explicit CSV paths via `--data`, and manifest metadata can be validated through `config/data_manifest.yaml`, but no populated `data/historical/` directory or real data manifest exists yet.
 
 Required next input is broker-quality historical market data, preferably tick-level bid/ask data or bid/ask candles for the configured default pairs:
 
@@ -65,7 +65,7 @@ Real edge evidence requires validated historical data, realistic costs, chronolo
 - Candle-based backtests synthesize bid/ask from close and assumed spread; this is lower confidence than real bid/ask data for stop/limit-sensitive systems.
 - Fees, commission, swap, minimum stop distance, latency, and broker rejected-order behavior are modeled only through simple assumptions or placeholders.
 - There is no campaign-level matrix orchestrator yet; baseline matrices must currently be run through explicit commands or a future wrapper.
-- The repo has a manifest example now, but the runners do not consume a manifest directly yet.
+- The repo has a manifest loader now, but a campaign matrix runner that consumes the manifest end-to-end still needs to be added.
 
 ## Blunt Result
 

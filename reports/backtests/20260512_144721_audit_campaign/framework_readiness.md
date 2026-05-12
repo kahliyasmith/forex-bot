@@ -176,7 +176,7 @@ Timezone handling:
 ## Known Framework Limits
 
 - No real market data is present.
-- No manifest-driven campaign loader exists yet.
+- Manifest metadata loading exists, but no full campaign matrix runner consumes it end-to-end yet.
 - Walk-forward validation currently requires candle data.
 - No automated full matrix runner exists yet.
 - Bid/ask candle data needs a dedicated loader before audit-grade use.

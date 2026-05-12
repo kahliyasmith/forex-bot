@@ -56,7 +56,7 @@ Current runner candle CSV:
 timestamp,pair,open,high,low,close,volume
 ```
 
-Preferred bid/ask candle CSV for future loader support:
+Supported bid/ask candle CSV:
 
 ```csv
 timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume
@@ -165,7 +165,8 @@ Recommended manifest:
 config/data_manifest.yaml
 ```
 
-The current scripts do not consume the manifest yet. Use explicit `--data` paths until manifest loading is implemented.
+The manifest loader now supports `config/data_manifest.yaml`, validates manifest metadata, and rejects missing data files. Backtest scripts still accept explicit `--data` paths for direct runs.
+For `bidask_candles`, the current backtest runner normalizes strategy input to mid-price candles and uses the measured average close spread as the spread assumption.
 
 ## Naming Convention
 
@@ -187,14 +188,14 @@ H1 mid/ohlc candles:
 data/historical/EUR_USD_H1_ohlcv_mid_2020_2025.csv
 ```
 
-Use the repo's canonical symbol format with underscores.
+Use the repo's canonical symbol format with underscores in outputs and config. The market-data parser and manifest loader also accept compact symbols such as `EURUSD` and normalize them to `EUR_USD`.
 
 ## Validation Gate
 
 Do not run evidence backtests until each file passes:
 
 ```powershell
-python scripts\validate_market_data.py --data <file> --data-kind <quotes|candles|auto> --expected-interval-minutes <minutes> --output-dir <validation_dir>
+python scripts\validate_market_data.py --data <file> --data-kind <quotes|candles|bidask_candles|auto> --expected-interval-minutes <minutes> --output-dir <validation_dir>
 ```
 
 Any validation error must be fixed or explicitly documented before backtesting.

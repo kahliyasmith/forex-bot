@@ -38,7 +38,7 @@ or:
 timestamp,pair,open,high,low,close,volume
 ```
 
-If richer bid/ask candle data is provided, add a loader adapter before treating results as audit-grade.
+Bid/ask candle CSVs can now be validated with `--data-kind bidask_candles` and normalized by the backtest loader.
 
 ## 2. Validate Data
 
@@ -51,7 +51,7 @@ python scripts\validate_market_data.py --data data\historical\EUR_USD_tick_bidas
 Candidate command for candle data:
 
 ```powershell
-python scripts\validate_market_data.py --data data\historical\EUR_USD_H1_2020_2025.csv --data-kind candles --expected-interval-minutes 60 --max-gap-pct 5 --output-dir reports\data_validation\EUR_USD_H1
+python scripts\validate_market_data.py --data data\historical\EUR_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --expected-interval-minutes 60 --max-spread-pips 10 --max-gap-pct 5 --output-dir reports\data_validation\EUR_USD_H1
 ```
 
 Repeat validation for every pair before running performance tests.
@@ -100,8 +100,8 @@ Keep a final untouched out-of-sample period outside the walk-forward optimizatio
 
 Highest-value framework additions:
 
-- Manifest-aware data loader that consumes `data_manifest.yaml`.
 - Bid/ask candle loader that preserves bid and ask OHLC separately.
+- Campaign matrix runner that consumes `config/data_manifest.yaml` end-to-end.
 - Campaign matrix runner for pairs, timeframes, sessions, regimes, and cost assumptions.
 - Final untouched out-of-sample split enforcement.
 - Drawdown-duration and consecutive-loss metrics.

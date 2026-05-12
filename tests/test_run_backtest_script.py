@@ -82,6 +82,27 @@ def test_load_historical_quote_data(tmp_path: Path) -> None:
     assert rows[0].spread_pips == 2
 
 
+def test_load_historical_bidask_candle_data(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "bidask_candles.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1.1002,1.1012,1.0992,1.1007,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    data_kind, rows = module.load_historical_data(data_path)
+
+    assert data_kind == "bidask_candles"
+    assert len(rows) == 1
+    assert rows[0].spread_pips == 2
+    assert rows[0].to_mid_candle().close == module.Decimal("1.1006")
+
+
 def test_run_backtest_script_writes_outputs(tmp_path: Path, capsys) -> None:
     module = load_script_module()
     config_path = tmp_path / "bot.yaml"

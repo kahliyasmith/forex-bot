@@ -76,8 +76,11 @@ Run a CSV backtest with candle data:
 python scripts/run_backtest.py --data data/history/EUR_USD_H1.csv --data-kind candles --strategy trend_pullback --spread-pips 1.2 --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports/backtest
 ```
 
+Input quote CSV columns: `timestamp,pair,bid,ask`.
 Input candle CSV columns: `timestamp,pair,open,high,low,close,volume`.
-Input bid/ask CSV columns: `timestamp,pair,bid,ask`.
+Input bid/ask candle CSV columns: `timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume`.
+
+For `bidask_candles`, the runner normalizes strategy input to a mid-price candle and uses the measured average close spread as the spread assumption. This is data-kind support, not a profitability claim.
 
 Outputs:
 
@@ -101,7 +104,12 @@ Validate historical CSV data before backtesting:
 python scripts/validate_market_data.py --data data/history/EUR_USD_H1.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports/data_validation/EUR_USD_H1
 ```
 
-The validator checks required columns, timestamp parsing and timezone awareness, duplicate or non-monotonic timestamps, missing intervals, weekend rows, bad prices, crossed bid/ask quotes, unrealistic spreads, and large price gaps. Validation passing means the file is structurally usable; it does not imply the strategy has an edge.
+Supported `--data-kind` values are `quotes`, `candles`, `bidask_candles`, and `auto`.
+
+The validator checks required columns, timestamp parsing and timezone awareness, duplicate or non-monotonic timestamps, missing intervals, weekend rows, bad prices, OHLC consistency, crossed bid/ask quotes or candles, unrealistic spreads, and large price gaps. Validation passing means the file is structurally usable; it does not imply the strategy has an edge.
+
+Historical datasets can also be registered in `config/data_manifest.yaml`. The manifest loader validates metadata and rejects missing data files before a campaign uses them.
+Pair symbols are normalized to the repo format (`EUR_USD`); compact symbols such as `EURUSD` are accepted by the market-data parser and manifest loader.
 
 ## Walk-Forward Validation
 

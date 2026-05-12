@@ -1,8 +1,9 @@
-# Example only. The current runners do not consume this manifest directly yet.
-# Use scripts with explicit --data paths until manifest loading is implemented.
+# Example only. The manifest loader validates these entries and rejects missing data files.
+# Backtest commands can still be run directly with explicit --data paths.
 
 symbols:
-  EUR_USD:
+  EURUSD:
+    pair: "EUR_USD"
     source: "broker_or_vendor_name"
     broker_or_venue: "same_as_intended_execution_broker_if_possible"
     data_type: "tick_bid_ask"
@@ -29,9 +30,10 @@ symbols:
     notes: "Preferred audit-grade format."
 
   GBP_USD:
+    pair: "GBP_USD"
     source: "broker_or_vendor_name"
     broker_or_venue: "same_as_intended_execution_broker_if_possible"
-    data_type: "broker_bid_ask_candles"
+    data_type: "bidask_candles"
     timeframe: "H1"
     timezone: "UTC"
     path: "data/historical/GBP_USD_H1_bidask_2020_2025.csv"
@@ -54,13 +56,15 @@ symbols:
     swap_model: "documented_in_assumptions.md"
     account_currency: "USD"
     expected_interval: "60m"
-    loader_support: "requires_bid_ask_candle_loader_before_current_backtest_runner_can_use_this_format"
     validation:
       required_before_backtest: true
-      validator_command: null
-    notes: "Preferred data shape, but current scripts need a loader adapter before this exact format can be backtested or validated by the simple CSV validator."
+      expected_interval_minutes: 60
+      max_spread_pips: 10
+      validator_command: "python scripts/validate_market_data.py --data data/historical/GBP_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --expected-interval-minutes 60 --output-dir reports/data_validation/GBP_USD_H1"
+    notes: "Preferred broker bid/ask candle shape supported by the validator and backtest loader normalization."
 
   USD_JPY:
+    pair: "USD_JPY"
     source: "broker_or_vendor_name"
     broker_or_venue: "same_as_intended_execution_broker_if_possible"
     data_type: "ohlcv_mid"

@@ -20,22 +20,22 @@ from forex_bot.backtest import BacktestConfig, BacktestEngine
 from forex_bot.backtest.engine import BacktestResult, Trade
 from forex_bot.bot import classify_session
 from forex_bot.config import load_config
-from forex_bot.data import Candle, CurrencyPair, Quote
+from forex_bot.data import BidAskCandle, Candle, CurrencyPair, Quote
 from forex_bot.data.models import to_decimal
 from forex_bot.monitoring.reporting import ReportTrade, build_performance_report, decimal_to_json
 from forex_bot.strategies import TrendPullbackParameters, TrendPullbackStrategy
 from forex_bot.strategies.base import Strategy
 
-DataKind = Literal["quotes", "candles"]
+DataKind = Literal["quotes", "candles", "bidask_candles"]
 STRESS_MULTIPLIERS = (Decimal("1"), Decimal("2"), Decimal("3"))
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a forex backtest from CSV data.")
-    parser.add_argument("--data", required=True, help="CSV file with quote or candle history.")
+    parser.add_argument("--data", required=True, help="CSV file with quote, candle, or bidask_candles history.")
     parser.add_argument(
         "--data-kind",
-        choices=["auto", "quotes", "candles"],
+        choices=["auto", "quotes", "candles", "bidask_candles"],
         default="auto",
         help="Input data type. Auto detects from CSV headers by default.",
     )
@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="reports/backtest", help="Directory for outputs.")
     parser.add_argument("--initial-balance", default="10000")
     parser.add_argument("--units", default="10000")
-    parser.add_argument("--spread-pips", default="1.0", help="Assumed spread for candle data.")
+    parser.add_argument("--spread-pips", default="1.0", help="Assumed spread for plain candle data.")
     parser.add_argument("--slippage-pips", default="0")
     parser.add_argument("--commission-per-trade", default="0")
     parser.add_argument("--swap-cost-per-trade", default="0")
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     data_kind, market_data = load_historical_data(Path(args.data), args.data_kind)
     allowed_pairs = parse_pairs(args.pairs) or config.pairs or pairs_from_data(market_data)
     base_spread_pips = (
-        to_decimal(args.spread_pips) if data_kind == "candles" else average_quote_spread(market_data)
+        to_decimal(args.spread_pips) if data_kind == "candles" else average_spread(market_data)
     )
     base_slippage_pips = to_decimal(args.slippage_pips)
     output_dir = Path(args.output_dir)
@@ -116,7 +116,7 @@ def run_backtest(
     *,
     args: argparse.Namespace,
     data_kind: DataKind,
-    market_data: list[Quote] | list[Candle],
+    market_data: list[Quote] | list[Candle] | list[BidAskCandle],
     allowed_pairs: list[str],
     spread_pips: Decimal,
     slippage_pips: Decimal,
@@ -135,12 +135,19 @@ def run_backtest(
     if data_kind == "candles":
         result = engine.run_candles(market_data, strategy, spread_pips=spread_pips)
         report_spread_pips = spread_pips
+    elif data_kind == "bidask_candles":
+        result = engine.run_candles(
+            [candle.to_mid_candle() for candle in market_data if isinstance(candle, BidAskCandle)],
+            strategy,
+            spread_pips=spread_pips,
+        )
+        report_spread_pips = spread_pips
     else:
-        base_quote_spread = average_quote_spread(market_data)
+        base_quote_spread = average_spread(market_data)
         spread_multiplier = spread_pips / base_quote_spread if base_quote_spread else Decimal("1")
         stressed_quotes = scale_quote_spreads(market_data, spread_multiplier)
         result = engine.run(stressed_quotes, strategy)
-        report_spread_pips = average_quote_spread(stressed_quotes)
+        report_spread_pips = average_spread(stressed_quotes)
 
     report_trades = report_trades_from_backtest(
         result.trades,
@@ -155,7 +162,7 @@ def run_cost_stress_grid(
     *,
     args: argparse.Namespace,
     data_kind: DataKind,
-    market_data: list[Quote] | list[Candle],
+    market_data: list[Quote] | list[Candle] | list[BidAskCandle],
     allowed_pairs: list[str],
     base_spread_pips: Decimal,
     base_slippage_pips: Decimal,
@@ -223,7 +230,10 @@ def write_cost_stress_report(rows: list[dict[str, object]], output_dir: Path) ->
     )
 
 
-def load_historical_data(path: Path, data_kind: str = "auto") -> tuple[DataKind, list[Quote] | list[Candle]]:
+def load_historical_data(
+    path: Path,
+    data_kind: str = "auto",
+) -> tuple[DataKind, list[Quote] | list[Candle] | list[BidAskCandle]]:
     with path.open("r", newline="", encoding="utf-8") as csv_file:
         rows = [{key.strip().lower(): value.strip() for key, value in row.items()} for row in csv.DictReader(csv_file)]
     if not rows:
@@ -255,18 +265,48 @@ def load_historical_data(path: Path, data_kind: str = "auto") -> tuple[DataKind,
             for row in rows
         ]
         return "candles", sorted(candles, key=lambda candle: candle.timestamp)
+    if detected_kind == "bidask_candles":
+        bidask_candles = [
+            BidAskCandle(
+                pair=row.get("pair") or row.get("symbol") or "",
+                bid_open=row["bid_open"],
+                bid_high=row["bid_high"],
+                bid_low=row["bid_low"],
+                bid_close=row["bid_close"],
+                ask_open=row["ask_open"],
+                ask_high=row["ask_high"],
+                ask_low=row["ask_low"],
+                ask_close=row["ask_close"],
+                volume=row.get("volume", "0") or "0",
+                timestamp=parse_timestamp(row["timestamp"]),
+            )
+            for row in rows
+        ]
+        return "bidask_candles", sorted(bidask_candles, key=lambda candle: candle.timestamp)
     raise ValueError(f"unsupported data kind: {data_kind}")
 
 
 def detect_data_kind(headers) -> DataKind:
     header_set = set(headers)
+    if {
+        "timestamp",
+        "bid_open",
+        "bid_high",
+        "bid_low",
+        "bid_close",
+        "ask_open",
+        "ask_high",
+        "ask_low",
+        "ask_close",
+    }.issubset(header_set) and ("pair" in header_set or "symbol" in header_set):
+        return "bidask_candles"
     if {"timestamp", "bid", "ask"}.issubset(header_set) and ("pair" in header_set or "symbol" in header_set):
         return "quotes"
     if {"timestamp", "open", "high", "low", "close"}.issubset(header_set) and (
         "pair" in header_set or "symbol" in header_set
     ):
         return "candles"
-    raise ValueError("CSV must contain quote columns or candle columns")
+    raise ValueError("CSV must contain quote, candle, or bidask_candles columns")
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -280,7 +320,7 @@ def parse_pairs(value: str | None) -> list[str] | None:
     return [CurrencyPair.parse(pair.strip()).symbol for pair in value.split(",") if pair.strip()]
 
 
-def pairs_from_data(market_data: list[Quote] | list[Candle]) -> list[str]:
+def pairs_from_data(market_data: list[Quote] | list[Candle] | list[BidAskCandle]) -> list[str]:
     return sorted({event.pair.symbol for event in market_data})
 
 
@@ -300,14 +340,17 @@ def build_strategy(name: str, args: argparse.Namespace, allowed_pairs: list[str]
     raise ValueError(f"unsupported strategy: {name}")
 
 
-def average_quote_spread(quotes: list[Quote] | list[Candle]) -> Decimal:
-    quote_rows = [quote for quote in quotes if isinstance(quote, Quote)]
-    if not quote_rows:
+def average_spread(market_data: list[Quote] | list[Candle] | list[BidAskCandle]) -> Decimal:
+    spread_rows = [row for row in market_data if isinstance(row, Quote | BidAskCandle)]
+    if not spread_rows:
         return Decimal("0")
-    return sum((quote.spread_pips for quote in quote_rows), Decimal("0")) / Decimal(len(quote_rows))
+    return sum((row.spread_pips for row in spread_rows), Decimal("0")) / Decimal(len(spread_rows))
 
 
-def scale_quote_spreads(quotes: list[Quote] | list[Candle], spread_multiplier: Decimal) -> list[Quote]:
+def scale_quote_spreads(
+    quotes: list[Quote] | list[Candle] | list[BidAskCandle],
+    spread_multiplier: Decimal,
+) -> list[Quote]:
     return [
         Quote.from_mid(quote.pair, quote.mid, quote.spread_pips * spread_multiplier, quote.timestamp)
         for quote in quotes

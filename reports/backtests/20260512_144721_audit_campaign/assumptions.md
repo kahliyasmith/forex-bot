@@ -11,7 +11,7 @@ This campaign separates framework readiness from trading evidence. No historical
 - Mock data is synthetic, tiny, hand-shaped, and not representative of forex market behavior.
 - Mock data must not be used for profitability, robustness, drawdown, win-rate, or strategy-edge conclusions.
 - Current scripts require data to be supplied explicitly with `--data`.
-- No production data manifest is consumed by the runners yet.
+- `config/data_manifest.yaml` is supported by a manifest loader for metadata validation and missing-file rejection. Backtest runners still accept explicit `--data` paths for direct runs.
 
 ## Current Loader Expectations
 

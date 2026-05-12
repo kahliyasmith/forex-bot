@@ -19,7 +19,7 @@ if str(SRC) not in sys.path:
 from forex_bot.data.models import CurrencyPair
 from forex_bot.monitoring.reporting import decimal_to_json
 
-DataKind = Literal["quotes", "candles"]
+DataKind = Literal["quotes", "candles", "bidask_candles"]
 
 
 @dataclass(frozen=True)
@@ -50,11 +50,15 @@ class ValidationResult:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate forex CSV market data.")
     parser.add_argument("--data", required=True, help="CSV data file to validate.")
-    parser.add_argument("--data-kind", choices=["auto", "quotes", "candles"], default="auto")
+    parser.add_argument(
+        "--data-kind",
+        choices=["auto", "quotes", "candles", "bidask_candles"],
+        default="auto",
+    )
     parser.add_argument(
         "--expected-interval-minutes",
         type=int,
-        help="Expected interval for candle/quote timestamps per pair. Enables missing-gap checks.",
+        help="Expected interval for quote/candle timestamps per pair. Enables missing-gap checks.",
     )
     parser.add_argument("--max-spread-pips", default="10")
     parser.add_argument("--max-gap-pct", default="5")
@@ -105,6 +109,8 @@ def validate_csv(
     missing = sorted(required_columns - set(headers))
     for column in missing:
         issues.append(issue("error", "required_columns", None, None, None, f"missing column: {column}"))
+    if "pair" not in headers and "symbol" not in headers:
+        issues.append(issue("error", "required_columns", None, None, None, "missing column: pair or symbol"))
 
     parsed_rows: list[dict[str, object]] = []
     for index, row in enumerate(rows, start=2):
@@ -117,7 +123,7 @@ def validate_csv(
     issues.extend(check_expected_intervals(parsed_rows, expected_interval))
     issues.extend(check_weekend_rows(parsed_rows))
     issues.extend(check_large_price_gaps(parsed_rows, max_gap_pct))
-    if detected_kind == "quotes":
+    if detected_kind in {"quotes", "bidask_candles"}:
         issues.extend(check_spreads(parsed_rows, max_spread_pips))
 
     timestamps = [row["timestamp"] for row in parsed_rows if isinstance(row.get("timestamp"), datetime)]
@@ -135,6 +141,18 @@ def validate_csv(
 
 def detect_data_kind(headers: list[str]) -> DataKind:
     header_set = set(headers)
+    if {
+        "timestamp",
+        "bid_open",
+        "bid_high",
+        "bid_low",
+        "bid_close",
+        "ask_open",
+        "ask_high",
+        "ask_low",
+        "ask_close",
+    }.issubset(header_set) and ("pair" in header_set or "symbol" in header_set):
+        return "bidask_candles"
     if {"timestamp", "pair", "bid", "ask"}.issubset(header_set) or {
         "timestamp",
         "symbol",
@@ -146,12 +164,24 @@ def detect_data_kind(headers: list[str]) -> DataKind:
         "pair" in header_set or "symbol" in header_set
     ):
         return "candles"
-    raise ValueError("CSV must contain either quote or candle columns")
+    raise ValueError("CSV must contain quote, candle, or bidask_candles columns")
 
 
 def required_columns_for(data_kind: DataKind) -> set[str]:
     if data_kind == "quotes":
         return {"timestamp", "bid", "ask"}
+    if data_kind == "bidask_candles":
+        return {
+            "timestamp",
+            "bid_open",
+            "bid_high",
+            "bid_low",
+            "bid_close",
+            "ask_open",
+            "ask_high",
+            "ask_low",
+            "ask_close",
+        }
     return {"timestamp", "open", "high", "low", "close"}
 
 
@@ -187,7 +217,7 @@ def parse_row(row: dict[str, str], data_kind: DataKind, index: int) -> dict[str,
                 issues.append(issue("error", "bad_prices", index, pair, timestamp_raw, "bid/ask must be positive"))
             if ask < bid:
                 issues.append(issue("error", "crossed_market", index, pair, timestamp_raw, "ask is below bid"))
-    else:
+    elif data_kind == "candles":
         prices = {
             name: parse_decimal(row.get(name, ""), name, index, pair, timestamp_raw, issues)
             for name in ("open", "high", "low", "close")
@@ -203,7 +233,81 @@ def parse_row(row: dict[str, str], data_kind: DataKind, index: int) -> dict[str,
                 issues.append(issue("error", "bad_prices", index, pair, timestamp_raw, "OHLC prices must be positive"))
             if high < max(open_, close) or low > min(open_, close) or high < low:
                 issues.append(issue("error", "ohlc_consistency", index, pair, timestamp_raw, "OHLC high/low are inconsistent"))
+    else:
+        bid_prices = {
+            name: parse_decimal(row.get(name, ""), name, index, pair, timestamp_raw, issues)
+            for name in ("bid_open", "bid_high", "bid_low", "bid_close")
+        }
+        ask_prices = {
+            name: parse_decimal(row.get(name, ""), name, index, pair, timestamp_raw, issues)
+            for name in ("ask_open", "ask_high", "ask_low", "ask_close")
+        }
+        parsed.update(bid_prices)
+        parsed.update(ask_prices)
+        parsed["volume"] = parse_decimal(row.get("volume", "0"), "volume", index, pair, timestamp_raw, issues)
+        all_prices = {**bid_prices, **ask_prices}
+        if all(value is not None for value in all_prices.values()):
+            if min(all_prices.values()) <= 0:
+                issues.append(issue("error", "bad_prices", index, pair, timestamp_raw, "bid/ask OHLC prices must be positive"))
+            validate_ohlc(
+                prefix="bid",
+                prices=bid_prices,
+                row=index,
+                pair=pair,
+                timestamp=timestamp_raw,
+                issues=issues,
+            )
+            validate_ohlc(
+                prefix="ask",
+                prices=ask_prices,
+                row=index,
+                pair=pair,
+                timestamp=timestamp_raw,
+                issues=issues,
+            )
+            for field in ("open", "high", "low", "close"):
+                bid_value = bid_prices[f"bid_{field}"]
+                ask_value = ask_prices[f"ask_{field}"]
+                if ask_value < bid_value:
+                    issues.append(
+                        issue(
+                            "error",
+                            "crossed_market",
+                            index,
+                            pair,
+                            timestamp_raw,
+                            f"ask_{field} is below bid_{field}",
+                        )
+                    )
     return parsed
+
+
+def validate_ohlc(
+    *,
+    prefix: str,
+    prices: dict[str, Decimal | None],
+    row: int,
+    pair: str | None,
+    timestamp: str | None,
+    issues: list[ValidationIssue],
+) -> None:
+    open_ = prices[f"{prefix}_open"]
+    high = prices[f"{prefix}_high"]
+    low = prices[f"{prefix}_low"]
+    close = prices[f"{prefix}_close"]
+    if not all(isinstance(value, Decimal) for value in (open_, high, low, close)):
+        return
+    if high < max(open_, close) or low > min(open_, close) or high < low:
+        issues.append(
+            issue(
+                "error",
+                f"{prefix}_ohlc_consistency",
+                row,
+                pair,
+                timestamp,
+                f"{prefix} OHLC high/low are inconsistent",
+            )
+        )
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -295,7 +399,7 @@ def check_large_price_gaps(rows: list[dict[str, object]], max_gap_pct: Decimal) 
     for pair, pair_rows in group_by_pair(rows).items():
         previous_close: Decimal | None = None
         for row in pair_rows:
-            price = row.get("close") or row.get("bid")
+            price = close_price_for_gap(row)
             if not isinstance(price, Decimal):
                 continue
             if previous_close and previous_close > 0:
@@ -307,22 +411,58 @@ def check_large_price_gaps(rows: list[dict[str, object]], max_gap_pct: Decimal) 
     return issues
 
 
+def close_price_for_gap(row: dict[str, object]) -> Decimal | None:
+    close = row.get("close")
+    if isinstance(close, Decimal):
+        return close
+    bid = row.get("bid")
+    if isinstance(bid, Decimal):
+        return bid
+    bid_close = row.get("bid_close")
+    ask_close = row.get("ask_close")
+    if isinstance(bid_close, Decimal) and isinstance(ask_close, Decimal):
+        return (bid_close + ask_close) / Decimal("2")
+    return None
+
+
 def check_spreads(rows: list[dict[str, object]], max_spread_pips: Decimal) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     for row in rows:
         pair_raw = row.get("pair")
-        bid = row.get("bid")
-        ask = row.get("ask")
         timestamp = row.get("timestamp")
-        if not isinstance(pair_raw, str) or not isinstance(bid, Decimal) or not isinstance(ask, Decimal):
-            continue
-        if ask < bid:
+        if not isinstance(pair_raw, str):
             continue
         pair = CurrencyPair.parse(pair_raw)
-        spread_pips = (ask - bid) / pair.pip_size
-        if spread_pips > max_spread_pips:
-            issues.append(issue("warning", "unrealistic_spread", row["row"], pair.symbol, timestamp.isoformat() if isinstance(timestamp, datetime) else None, f"spread {spread_pips} pips exceeds {max_spread_pips}"))
+        for label, bid, ask in spread_points(row):
+            if ask < bid:
+                continue
+            spread_pips = (ask - bid) / pair.pip_size
+            if spread_pips > max_spread_pips:
+                issues.append(
+                    issue(
+                        "warning",
+                        "unrealistic_spread",
+                        row["row"],
+                        pair.symbol,
+                        timestamp.isoformat() if isinstance(timestamp, datetime) else None,
+                        f"{label} spread {spread_pips} pips exceeds {max_spread_pips}",
+                    )
+                )
     return issues
+
+
+def spread_points(row: dict[str, object]) -> list[tuple[str, Decimal, Decimal]]:
+    bid = row.get("bid")
+    ask = row.get("ask")
+    if isinstance(bid, Decimal) and isinstance(ask, Decimal):
+        return [("quote", bid, ask)]
+    points: list[tuple[str, Decimal, Decimal]] = []
+    for field in ("open", "high", "low", "close"):
+        bid_value = row.get(f"bid_{field}")
+        ask_value = row.get(f"ask_{field}")
+        if isinstance(bid_value, Decimal) and isinstance(ask_value, Decimal):
+            points.append((field, bid_value, ask_value))
+    return points
 
 
 def group_by_pair(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:

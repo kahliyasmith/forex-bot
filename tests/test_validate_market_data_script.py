@@ -35,6 +35,27 @@ def test_validate_good_quote_data(tmp_path: Path) -> None:
     assert result.rows == 2
 
 
+def test_validate_good_candle_data(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "EUR_USD_H1.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,open,high,low,close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1000",
+                "2026-01-05T15:00:00Z,EUR_USD,1.1005,1.1020,1.1000,1.1010,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = module.validate_csv(data_path, expected_interval=module.timedelta(hours=1))
+
+    assert result.passed is True
+    assert result.data_kind == "candles"
+    assert result.rows == 2
+
+
 def test_validate_bad_quote_data_reports_errors_and_warnings(tmp_path: Path) -> None:
     module = load_script_module()
     data_path = tmp_path / "bad_quotes.csv"
@@ -63,6 +84,98 @@ def test_validate_bad_quote_data_reports_errors_and_warnings(tmp_path: Path) -> 
     assert "timezone" in checks
     assert "weekend_row" in checks
     assert "unrealistic_spread" in checks
+
+
+def test_validate_bidask_candle_data_and_auto_detection(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "EUR_USD_H1_bidask.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1.1002,1.1012,1.0992,1.1007,1000",
+                "2026-01-05T15:00:00Z,EUR_USD,1.1005,1.1020,1.1000,1.1010,1.1007,1.1022,1.1002,1.1012,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = module.validate_csv(data_path, expected_interval=module.timedelta(hours=1))
+
+    assert result.passed is True
+    assert result.data_kind == "bidask_candles"
+    assert result.pairs == ["EUR_USD"]
+
+
+def test_validate_bidask_candle_reports_crossed_market(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "crossed_bidask.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1.0999,1.1012,1.0992,1.1007,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = module.validate_csv(data_path, data_kind="bidask_candles")
+
+    assert result.passed is False
+    assert "crossed_market" in {issue.check for issue in result.issues}
+
+
+def test_validate_bidask_candle_reports_unrealistic_spread_and_missing_interval(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "wide_spread_bidask.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1.1002,1.1012,1.0992,1.1007,1000",
+                "2026-01-05T16:00:00Z,EUR_USD,1.1005,1.1020,1.1000,1.1010,1.1015,1.1030,1.1010,1.1020,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = module.validate_csv(
+        data_path,
+        data_kind="bidask_candles",
+        expected_interval=module.timedelta(hours=1),
+        max_spread_pips=module.Decimal("5"),
+    )
+    checks = {issue.check for issue in result.issues}
+
+    assert result.passed is True
+    assert "unrealistic_spread" in checks
+    assert "missing_interval" in checks
+
+
+def test_validate_bidask_candle_spread_pips_for_jpy_and_non_jpy(tmp_path: Path) -> None:
+    module = load_script_module()
+    data_path = tmp_path / "mixed_bidask.csv"
+    data_path.write_text(
+        "\n".join(
+            [
+                "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume",
+                "2026-01-05T14:00:00Z,EUR_USD,1.1000,1.1010,1.0990,1.1005,1.1008,1.1018,1.0998,1.1013,1000",
+                "2026-01-05T14:00:00Z,USD_JPY,150.00,150.20,149.90,150.10,150.08,150.28,149.98,150.18,1000",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = module.validate_csv(
+        data_path,
+        data_kind="bidask_candles",
+        max_spread_pips=module.Decimal("5"),
+    )
+    messages = [issue.message for issue in result.issues if issue.check == "unrealistic_spread"]
+
+    assert len(messages) == 8
+    assert any("8" in message for message in messages)
 
 
 def test_validator_cli_writes_reports(tmp_path: Path, capsys) -> None:

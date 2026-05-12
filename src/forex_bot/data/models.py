@@ -31,7 +31,10 @@ class CurrencyPair:
     def parse(cls, value: "CurrencyPair | str") -> "CurrencyPair":
         if isinstance(value, CurrencyPair):
             return value
-        parts = value.upper().split("_")
+        normalized = value.upper()
+        if "_" not in normalized and len(normalized) == 6:
+            normalized = f"{normalized[:3]}_{normalized[3:]}"
+        parts = normalized.split("_")
         if len(parts) != 2:
             raise ValueError(f"invalid currency pair: {value}")
         return cls(base=parts[0], quote=parts[1])
@@ -204,6 +207,79 @@ class Candle:
         object.__setattr__(self, "close", close)
         object.__setattr__(self, "volume", volume)
         object.__setattr__(self, "timestamp", ts)
+
+
+@dataclass(frozen=True)
+class BidAskCandle:
+    """Bid/ask OHLCV candle.
+
+    Backtest runner code can normalize this into a mid-price candle plus a
+    measured spread assumption without changing strategy logic.
+    """
+
+    pair: CurrencyPair | str
+    bid_open: Decimal | float | int | str
+    bid_high: Decimal | float | int | str
+    bid_low: Decimal | float | int | str
+    bid_close: Decimal | float | int | str
+    ask_open: Decimal | float | int | str
+    ask_high: Decimal | float | int | str
+    ask_low: Decimal | float | int | str
+    ask_close: Decimal | float | int | str
+    volume: Decimal | float | int | str
+    timestamp: datetime
+
+    def __post_init__(self) -> None:
+        pair = CurrencyPair.parse(self.pair)
+        prices = {
+            "bid_open": to_decimal(self.bid_open),
+            "bid_high": to_decimal(self.bid_high),
+            "bid_low": to_decimal(self.bid_low),
+            "bid_close": to_decimal(self.bid_close),
+            "ask_open": to_decimal(self.ask_open),
+            "ask_high": to_decimal(self.ask_high),
+            "ask_low": to_decimal(self.ask_low),
+            "ask_close": to_decimal(self.ask_close),
+        }
+        volume = to_decimal(self.volume)
+        if min(prices.values()) <= 0:
+            raise ValueError("bid/ask candle prices must be positive")
+        if volume < 0:
+            raise ValueError("volume must be non-negative")
+        if prices["bid_high"] < max(prices["bid_open"], prices["bid_close"]) or prices[
+            "bid_low"
+        ] > min(prices["bid_open"], prices["bid_close"]):
+            raise ValueError("bid high/low must contain bid open and close")
+        if prices["ask_high"] < max(prices["ask_open"], prices["ask_close"]) or prices[
+            "ask_low"
+        ] > min(prices["ask_open"], prices["ask_close"]):
+            raise ValueError("ask high/low must contain ask open and close")
+        for field in ("open", "high", "low", "close"):
+            if prices[f"ask_{field}"] < prices[f"bid_{field}"]:
+                raise ValueError(f"ask_{field} must be greater than or equal to bid_{field}")
+        ts = self.timestamp
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        object.__setattr__(self, "pair", pair)
+        for name, value in prices.items():
+            object.__setattr__(self, name, value)
+        object.__setattr__(self, "volume", volume)
+        object.__setattr__(self, "timestamp", ts)
+
+    @property
+    def spread_pips(self) -> Decimal:
+        return (self.ask_close - self.bid_close) / self.pair.pip_size
+
+    def to_mid_candle(self) -> Candle:
+        return Candle(
+            pair=self.pair,
+            open=(self.bid_open + self.ask_open) / Decimal("2"),
+            high=(self.bid_high + self.ask_high) / Decimal("2"),
+            low=(self.bid_low + self.ask_low) / Decimal("2"),
+            close=(self.bid_close + self.ask_close) / Decimal("2"),
+            volume=self.volume,
+            timestamp=self.timestamp,
+        )
 
 
 def floor_units(units: Decimal) -> int:
