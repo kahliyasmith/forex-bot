@@ -20,11 +20,12 @@ for path in (SRC, SCRIPTS):
 
 from forex_bot.backtest.engine import BacktestResult
 from forex_bot.config import load_config
-from forex_bot.data import Candle
+from forex_bot.data import BidAskCandle, Candle
 from forex_bot.data.models import to_decimal
 from forex_bot.monitoring.reporting import build_performance_report, decimal_to_json
 
 from run_backtest import (
+    average_spread,
     build_strategy,
     load_historical_data,
     pairs_from_data,
@@ -49,8 +50,8 @@ class Window:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run walk-forward validation from candle CSV data.")
-    parser.add_argument("--data", required=True, help="CSV file with candle history.")
-    parser.add_argument("--data-kind", choices=["auto", "candles"], default="auto")
+    parser.add_argument("--data", required=True, help="CSV file with candle or bidask_candles history.")
+    parser.add_argument("--data-kind", choices=["auto", "candles", "bidask_candles"], default="auto")
     parser.add_argument("--config", default="config/bot.yaml")
     parser.add_argument("--strategy", choices=["trend_pullback"], default="trend_pullback")
     parser.add_argument("--pairs", help="Comma-separated allowed pairs.")
@@ -76,9 +77,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
-    data_kind, market_data = load_historical_data(Path(args.data), args.data_kind)
-    if data_kind != "candles":
-        raise ValueError("walk-forward validation currently requires candle data")
+    data_kind, loaded_data = load_historical_data(Path(args.data), args.data_kind)
+    if data_kind not in {"candles", "bidask_candles"}:
+        raise ValueError("walk-forward validation currently requires candle or bidask_candles data")
+    market_data = normalize_walkforward_data(loaded_data)
+    spread_pips = (
+        average_spread(loaded_data)
+        if data_kind == "bidask_candles"
+        else to_decimal(args.spread_pips)
+    )
 
     allowed_pairs = parse_pairs(args.pairs) or config.pairs or pairs_from_data(market_data)
     windows = build_windows(
@@ -101,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     for window in windows:
         window_dir = output_dir / f"window_{window.index:03d}"
         window_dir.mkdir(parents=True, exist_ok=True)
-        grid_rows = evaluate_training_grid(args, window, allowed_pairs, parameter_sets)
+        grid_rows = evaluate_training_grid(args, window, allowed_pairs, parameter_sets, spread_pips)
         tested_configs.extend(
             {**row["parameters"], "window": window.index, "train_score": row["score"]}
             for row in grid_rows
@@ -113,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             data=window.test_data,
             allowed_pairs=allowed_pairs,
             parameters=best_row["parameters"],
+            spread_pips=spread_pips,
         )
         test_report.export_json(window_dir / "test_report.json")
         test_report.export_csv(window_dir)
@@ -123,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
             report_trades_from_backtest(
                 test_result.trades,
                 strategy_name=args.strategy,
-                spread_pips=to_decimal(args.spread_pips),
+                spread_pips=spread_pips,
                 slippage_pips=to_decimal(args.slippage_pips),
             )
         )
@@ -133,13 +141,21 @@ def main(argv: list[str] | None = None) -> int:
     aggregate_report = build_performance_report(equity_curve=aggregate_equity, trades=aggregate_trades)
     aggregate_report.export_json(output_dir / "walkforward_oos_report.json")
     aggregate_report.export_csv(output_dir / "aggregate_oos")
-    manifest = build_manifest(args, market_data, windows, tested_configs, aggregate_report)
+    manifest = build_manifest(args, data_kind, market_data, spread_pips, windows, tested_configs, aggregate_report)
     (output_dir / "walkforward_summary.json").write_text(
         json.dumps(decimal_to_json(manifest), indent=2, sort_keys=True),
         encoding="utf-8",
     )
     print_summary(windows, aggregate_report)
     return 0
+
+
+def normalize_walkforward_data(data: list[object]) -> list[Candle]:
+    if all(isinstance(item, Candle) for item in data):
+        return list(data)
+    if all(isinstance(item, BidAskCandle) for item in data):
+        return [item.to_mid_candle() for item in data]
+    raise ValueError("walk-forward validation requires homogeneous candle or bidask_candles data")
 
 
 def build_windows(
@@ -201,6 +217,7 @@ def evaluate_training_grid(
     window: Window,
     allowed_pairs: list[str],
     parameter_sets: list[dict[str, object]],
+    spread_pips: Decimal,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for parameters in parameter_sets:
@@ -209,6 +226,7 @@ def evaluate_training_grid(
             data=window.train_data,
             allowed_pairs=allowed_pairs,
             parameters=parameters,
+            spread_pips=spread_pips,
         )
         rows.append(
             {
@@ -230,6 +248,7 @@ def run_window_backtest(
     data: list[Candle],
     allowed_pairs: list[str],
     parameters: dict[str, object],
+    spread_pips: Decimal,
 ) -> tuple[BacktestResult, object]:
     window_args = copy.copy(args)
     window_args.trend_ma_period = parameters["trend_ma_period"]
@@ -243,7 +262,7 @@ def run_window_backtest(
         data_kind="candles",
         market_data=data,
         allowed_pairs=allowed_pairs,
-        spread_pips=to_decimal(args.spread_pips),
+        spread_pips=spread_pips,
         slippage_pips=to_decimal(args.slippage_pips),
     )
 
@@ -286,7 +305,9 @@ def window_summary_row(window: Window, best_row: dict[str, object], result: Back
 
 def build_manifest(
     args: argparse.Namespace,
+    data_kind: str,
     data: list[Candle],
+    measured_spread_pips: Decimal,
     windows: list[Window],
     tested_configs: list[dict[str, object]],
     aggregate_report,
@@ -294,7 +315,8 @@ def build_manifest(
     return {
         "assumptions": {
             "strategy": args.strategy,
-            "spread_pips": args.spread_pips,
+            "data_kind": data_kind,
+            "spread_pips": measured_spread_pips,
             "slippage_pips": args.slippage_pips,
             "commission_per_trade": args.commission_per_trade,
             "swap_cost_per_trade": args.swap_cost_per_trade,

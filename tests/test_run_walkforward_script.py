@@ -36,6 +36,32 @@ def write_candles(path: Path, rows: int = 21) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_bidask_candles(path: Path, rows: int = 21) -> None:
+    start = datetime(2026, 1, 5, 14, tzinfo=timezone.utc)
+    pattern = [
+        ("1.1000", "1.1010", "1.0990", "1.1000"),
+        ("1.1000", "1.1020", "1.1000", "1.1010"),
+        ("1.1010", "1.1030", "1.1010", "1.1020"),
+        ("1.1020", "1.1040", "1.1020", "1.1030"),
+        ("1.1030", "1.1035", "1.1015", "1.1020"),
+        ("1.1020", "1.1050", "1.1020", "1.1045"),
+        ("1.1045", "1.1080", "1.1040", "1.1070"),
+    ]
+    lines = [
+        "timestamp,pair,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_low,ask_close,volume"
+    ]
+    for index in range(rows):
+        candle = pattern[index % len(pattern)]
+        timestamp = start + timedelta(hours=index)
+        bid_open, bid_high, bid_low, bid_close = [float(value) for value in candle]
+        lines.append(
+            f"{timestamp.isoformat().replace('+00:00', 'Z')},EUR_USD,"
+            f"{bid_open:.4f},{bid_high:.4f},{bid_low:.4f},{bid_close:.4f},"
+            f"{bid_open + 0.0001:.4f},{bid_high + 0.0001:.4f},{bid_low + 0.0001:.4f},{bid_close + 0.0001:.4f},1000"
+        )
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def write_config(path: Path) -> None:
     path.write_text(
         """
@@ -141,3 +167,49 @@ def test_run_walkforward_writes_window_and_aggregate_reports(tmp_path: Path, cap
     assert len(summary["tested_configs"]) == 4
     assert "data_quality_notes" in summary
     assert "overfit" in summary["warning"]
+
+
+def test_run_walkforward_accepts_bidask_candles(tmp_path: Path) -> None:
+    module = load_script_module()
+    config_path = tmp_path / "bot.yaml"
+    data_path = tmp_path / "bidask_candles.csv"
+    output_dir = tmp_path / "walkforward"
+    write_config(config_path)
+    write_bidask_candles(data_path, rows=21)
+
+    exit_code = module.main(
+        [
+            "--config",
+            str(config_path),
+            "--data",
+            str(data_path),
+            "--data-kind",
+            "bidask_candles",
+            "--output-dir",
+            str(output_dir),
+            "--train-window-size",
+            "7",
+            "--test-window-size",
+            "7",
+            "--step-size",
+            "7",
+            "--trend-ma-periods",
+            "3",
+            "--pullback-lookbacks",
+            "2",
+            "--atr-periods",
+            "2",
+            "--atr-multipliers",
+            "1.5",
+            "--reward-r-multiples",
+            "2.0",
+            "--slippage-pips",
+            "0.2",
+        ]
+    )
+    summary = json.loads((output_dir / "walkforward_summary.json").read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert summary["assumptions"]["data_kind"] == "bidask_candles"
+    assert summary["assumptions"]["spread_pips"] == 1.0
+    assert summary["windows"] == 2
