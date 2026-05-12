@@ -67,3 +67,22 @@ forex-bot --config config/bot.yaml status
 ```
 
 The status command prints mode, equity, positions, daily/weekly P&L, drawdown, active kill switches, latest spreads, latest decisions, and rejected signal count. It is intentionally text-only for now.
+
+## Backtests
+
+Run a CSV backtest with candle data:
+
+```powershell
+python scripts/run_backtest.py --data data/history/EUR_USD_H1.csv --data-kind candles --strategy trend_pullback --spread-pips 1.2 --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports/backtest
+```
+
+Input candle CSV columns: `timestamp,pair,open,high,low,close,volume`.
+Input bid/ask CSV columns: `timestamp,pair,bid,ask`.
+
+Outputs:
+
+- `backtest_trades.csv`: full trade ledger with entry, exit, P&L, commission, and swap.
+- `performance_report.json`: full performance report.
+- `trades.csv`, `equity_curve.csv`, `summary.csv`, `performance_by_pair.csv`, `performance_by_session.csv`, and `performance_by_strategy.csv`.
+
+The script prints summary metrics after the run. The current `trend_pullback` strategy is candle-driven, so candle data is the practical input for that strategy.
