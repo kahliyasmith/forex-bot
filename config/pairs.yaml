@@ -1,0 +1,7 @@
+pairs:
+  - symbol: EUR_USD
+    enabled: true
+  - symbol: GBP_USD
+    enabled: true
+  - symbol: USD_JPY
+    enabled: true

@@ -1,0 +1,12 @@
+bot:
+  name: forex-bot
+  mode: paper
+  timezone: America/New_York
+
+data:
+  timeframe: 1h
+  lookback_bars: 500
+
+execution:
+  dry_run: true
+  max_open_positions: 3
