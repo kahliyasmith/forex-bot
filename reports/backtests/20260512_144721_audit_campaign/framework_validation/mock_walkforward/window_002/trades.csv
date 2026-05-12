@@ -1,0 +1,2 @@
+pair,strategy,session,opened_at,closed_at,pnl,spread_pips,slippage_pips,news_window,rollover_exposure
+EUR_USD,trend_pullback,london,2026-01-06T09:00:00+00:00,2026-01-06T10:00:00+00:00,23.6,1.0,0.2,False,False

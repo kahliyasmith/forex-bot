@@ -93,6 +93,16 @@ By default, the script also reruns the backtest across a 3x3 transaction-cost gr
 
 Use `--no-stress-costs` to skip the stress report. The script prints summary metrics after the run. The current `trend_pullback` strategy is candle-driven, so candle data is the practical input for that strategy.
 
+## Market Data Validation
+
+Validate historical CSV data before backtesting:
+
+```powershell
+python scripts/validate_market_data.py --data data/history/EUR_USD_H1.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports/data_validation/EUR_USD_H1
+```
+
+The validator checks required columns, timestamp parsing and timezone awareness, duplicate or non-monotonic timestamps, missing intervals, weekend rows, bad prices, crossed bid/ask quotes, unrealistic spreads, and large price gaps. Validation passing means the file is structurally usable; it does not imply the strategy has an edge.
+
 ## Walk-Forward Validation
 
 Run walk-forward validation with candle data:

@@ -1,0 +1,4 @@
+pair,strategy,session,opened_at,closed_at,pnl,spread_pips,slippage_pips,news_window,rollover_exposure
+EUR_USD,trend_pullback,asian,2026-01-05T19:00:00+00:00,2026-01-05T21:00:00+00:00,-47.5,1.0,0.2,False,False
+EUR_USD,trend_pullback,asian,2026-01-05T22:00:00+00:00,2026-01-06T03:00:00+00:00,-62.5,1.0,0.2,False,False
+EUR_USD,trend_pullback,london,2026-01-06T09:00:00+00:00,2026-01-06T10:00:00+00:00,22.5,1.0,0.2,False,False

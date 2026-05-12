@@ -1,0 +1,89 @@
+{
+  "average_loss": -55.0,
+  "average_slippage": 0.2,
+  "average_spread_paid": 1.0,
+  "average_trade": -29.166666666666668,
+  "average_win": 22.5,
+  "equity_curve": [
+    10000.0,
+    9952.5,
+    9890.0,
+    9912.5
+  ],
+  "expectancy": -29.166666666666668,
+  "max_drawdown": 0.011,
+  "news_window_losses": 0.0,
+  "performance_by_pair": {
+    "EUR_USD": {
+      "average_trade": -29.166666666666668,
+      "pnl": -87.5,
+      "trades": 3.0,
+      "win_rate": 0.3333333333333333
+    }
+  },
+  "performance_by_session": {
+    "asian": {
+      "average_trade": -55.0,
+      "pnl": -110.0,
+      "trades": 2.0,
+      "win_rate": 0.0
+    },
+    "london": {
+      "average_trade": 22.5,
+      "pnl": 22.5,
+      "trades": 1.0,
+      "win_rate": 1.0
+    }
+  },
+  "performance_by_strategy": {
+    "trend_pullback": {
+      "average_trade": -29.166666666666668,
+      "pnl": -87.5,
+      "trades": 3.0,
+      "win_rate": 0.3333333333333333
+    }
+  },
+  "profit_factor": 0.20454545454545456,
+  "rollover_exposure": 0.0,
+  "sharpe_like_ratio": -0.7873622236652332,
+  "total_return": -0.00875,
+  "trades": [
+    {
+      "closed_at": "2026-01-05T21:00:00+00:00",
+      "news_window": false,
+      "opened_at": "2026-01-05T19:00:00+00:00",
+      "pair": "EUR_USD",
+      "pnl": -47.5,
+      "rollover_exposure": false,
+      "session": "asian",
+      "slippage_pips": 0.2,
+      "spread_pips": 1.0,
+      "strategy": "trend_pullback"
+    },
+    {
+      "closed_at": "2026-01-06T03:00:00+00:00",
+      "news_window": false,
+      "opened_at": "2026-01-05T22:00:00+00:00",
+      "pair": "EUR_USD",
+      "pnl": -62.5,
+      "rollover_exposure": false,
+      "session": "asian",
+      "slippage_pips": 0.2,
+      "spread_pips": 1.0,
+      "strategy": "trend_pullback"
+    },
+    {
+      "closed_at": "2026-01-06T10:00:00+00:00",
+      "news_window": false,
+      "opened_at": "2026-01-06T09:00:00+00:00",
+      "pair": "EUR_USD",
+      "pnl": 22.5,
+      "rollover_exposure": false,
+      "session": "london",
+      "slippage_pips": 0.2,
+      "spread_pips": 1.0,
+      "strategy": "trend_pullback"
+    }
+  ],
+  "win_rate": 0.3333333333333333
+}

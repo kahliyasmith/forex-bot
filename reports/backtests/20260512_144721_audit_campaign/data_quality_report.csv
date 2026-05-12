@@ -1,0 +1,7 @@
+check,severity,status,details
+real_historical_data,error,blocked,"No historical market data files are present in the repo."
+bid_ask_availability,error,blocked,"No bid/ask history is available."
+date_range,error,blocked,"No real historical date range is available."
+timeframe,error,blocked,"No real historical timeframe is available."
+mock_fixture,info,passed,"Synthetic EUR_USD H1 fixture validated for tooling only; not market evidence."
+validator,info,passed,"scripts/validate_market_data.py ran successfully against the mock fixture."

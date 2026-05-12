@@ -1,0 +1,2 @@
+rank,run_id,status,evidence_status,robustness_rank_reason
+1,20260512_144721_audit_campaign,FRAMEWORK_READY_DATA_MISSING,BLOCKED,"No real-data runs exist. Ranking is blocked; do not rank mock-data outputs."

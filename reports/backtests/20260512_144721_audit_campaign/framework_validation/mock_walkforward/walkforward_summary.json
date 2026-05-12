@@ -1,0 +1,138 @@
+{
+  "aggregate_out_of_sample": {
+    "average_loss": 0.0,
+    "average_slippage": 0.2,
+    "average_spread_paid": 1.0,
+    "average_trade": 23.6,
+    "average_win": 23.6,
+    "equity_curve": [
+      10000.0,
+      10023.6,
+      10047.2
+    ],
+    "expectancy": 23.6,
+    "max_drawdown": 0.0,
+    "news_window_losses": 0.0,
+    "performance_by_pair": {
+      "EUR_USD": {
+        "average_trade": 23.6,
+        "pnl": 47.2,
+        "trades": 2.0,
+        "win_rate": 1.0
+      }
+    },
+    "performance_by_session": {
+      "asian": {
+        "average_trade": 23.6,
+        "pnl": 23.6,
+        "trades": 1.0,
+        "win_rate": 1.0
+      },
+      "london": {
+        "average_trade": 23.6,
+        "pnl": 23.6,
+        "trades": 1.0,
+        "win_rate": 1.0
+      }
+    },
+    "performance_by_strategy": {
+      "trend_pullback": {
+        "average_trade": 23.6,
+        "pnl": 47.2,
+        "trades": 2.0,
+        "win_rate": 1.0
+      }
+    },
+    "profit_factor": Infinity,
+    "rollover_exposure": 0.0,
+    "sharpe_like_ratio": 0.0,
+    "total_return": 0.00472,
+    "trades": [
+      {
+        "closed_at": "2026-01-06T03:00:00+00:00",
+        "news_window": false,
+        "opened_at": "2026-01-06T02:00:00+00:00",
+        "pair": "EUR_USD",
+        "pnl": 23.6,
+        "rollover_exposure": false,
+        "session": "asian",
+        "slippage_pips": 0.2,
+        "spread_pips": 1.0,
+        "strategy": "trend_pullback"
+      },
+      {
+        "closed_at": "2026-01-06T10:00:00+00:00",
+        "news_window": false,
+        "opened_at": "2026-01-06T09:00:00+00:00",
+        "pair": "EUR_USD",
+        "pnl": 23.6,
+        "rollover_exposure": false,
+        "session": "london",
+        "slippage_pips": 0.2,
+        "spread_pips": 1.0,
+        "strategy": "trend_pullback"
+      }
+    ],
+    "win_rate": 1.0
+  },
+  "assumptions": {
+    "commission_per_trade": "0",
+    "initial_balance": "10000",
+    "selection_score": "expectancy minus max_drawdown*100",
+    "slippage_pips": "0.2",
+    "spread_pips": "1.0",
+    "strategy": "trend_pullback",
+    "swap_cost_per_trade": "0",
+    "units": "10000"
+  },
+  "data_quality_notes": [
+    "rows=21",
+    "first_timestamp=2026-01-05T14:00:00+00:00",
+    "last_timestamp=2026-01-06T10:00:00+00:00",
+    "source_csv_not_independently_verified"
+  ],
+  "tested_configs": [
+    {
+      "atr_multiplier": 1.5,
+      "atr_period": 2,
+      "min_confidence": 0.6,
+      "pullback_lookback": 2,
+      "reward_r_multiple": 2.0,
+      "train_score": 23.6,
+      "trend_ma_period": 3,
+      "window": 1
+    },
+    {
+      "atr_multiplier": 2.0,
+      "atr_period": 2,
+      "min_confidence": 0.6,
+      "pullback_lookback": 2,
+      "reward_r_multiple": 2.0,
+      "train_score": 23.6,
+      "trend_ma_period": 3,
+      "window": 1
+    },
+    {
+      "atr_multiplier": 1.5,
+      "atr_period": 2,
+      "min_confidence": 0.6,
+      "pullback_lookback": 2,
+      "reward_r_multiple": 2.0,
+      "train_score": 23.6,
+      "trend_ma_period": 3,
+      "window": 2
+    },
+    {
+      "atr_multiplier": 2.0,
+      "atr_period": 2,
+      "min_confidence": 0.6,
+      "pullback_lookback": 2,
+      "reward_r_multiple": 2.0,
+      "train_score": 23.6,
+      "trend_ma_period": 3,
+      "window": 2
+    }
+  ],
+  "warning": "Walk-forward validation reduces but does not eliminate overfit risk. Results may still be unrealistic if data quality is poor, spreads/slippage are understated, or the tested parameter grid was designed after inspecting this dataset.",
+  "windows": 2
+}

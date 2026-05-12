@@ -1,0 +1,3 @@
+trend_ma_period,pullback_lookback,atr_period,atr_multiplier,reward_r_multiple,min_confidence,score,trades,total_return,max_drawdown,profit_factor,expectancy
+3,2,2,1.5,2.0,0.6,23.6,1,0.00236,0.0,inf,23.6
+3,2,2,2.0,2.0,0.6,23.6,1,0.00236,0.0,inf,23.6

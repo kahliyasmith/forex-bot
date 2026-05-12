@@ -1,0 +1,88 @@
+# Example only. The current runners do not consume this manifest directly yet.
+# Use scripts with explicit --data paths until manifest loading is implemented.
+
+symbols:
+  EUR_USD:
+    source: "broker_or_vendor_name"
+    broker_or_venue: "same_as_intended_execution_broker_if_possible"
+    data_type: "tick_bid_ask"
+    timeframe: "tick"
+    timezone: "UTC"
+    path: "data/historical/EUR_USD_tick_bidask_2020_2025.csv"
+    start: "2020-01-01"
+    end: "2025-12-31"
+    columns:
+      timestamp: "timestamp"
+      pair: "pair"
+      bid: "bid"
+      ask: "ask"
+      bid_size: null
+      ask_size: null
+    spread_available: true
+    commission_model: "documented_in_assumptions.md"
+    swap_model: "documented_in_assumptions.md"
+    account_currency: "USD"
+    expected_interval: null
+    validation:
+      required_before_backtest: true
+      validator_command: "python scripts/validate_market_data.py --data data/historical/EUR_USD_tick_bidask_2020_2025.csv --data-kind quotes --output-dir reports/data_validation/EUR_USD_tick"
+    notes: "Preferred audit-grade format."
+
+  GBP_USD:
+    source: "broker_or_vendor_name"
+    broker_or_venue: "same_as_intended_execution_broker_if_possible"
+    data_type: "broker_bid_ask_candles"
+    timeframe: "H1"
+    timezone: "UTC"
+    path: "data/historical/GBP_USD_H1_bidask_2020_2025.csv"
+    start: "2020-01-01"
+    end: "2025-12-31"
+    columns:
+      timestamp: "timestamp"
+      pair: "pair"
+      bid_open: "bid_open"
+      bid_high: "bid_high"
+      bid_low: "bid_low"
+      bid_close: "bid_close"
+      ask_open: "ask_open"
+      ask_high: "ask_high"
+      ask_low: "ask_low"
+      ask_close: "ask_close"
+      volume: "volume"
+    spread_available: true
+    commission_model: "documented_in_assumptions.md"
+    swap_model: "documented_in_assumptions.md"
+    account_currency: "USD"
+    expected_interval: "60m"
+    loader_support: "requires_bid_ask_candle_loader_before_current_backtest_runner_can_use_this_format"
+    validation:
+      required_before_backtest: true
+      validator_command: null
+    notes: "Preferred data shape, but current scripts need a loader adapter before this exact format can be backtested or validated by the simple CSV validator."
+
+  USD_JPY:
+    source: "broker_or_vendor_name"
+    broker_or_venue: "same_as_intended_execution_broker_if_possible"
+    data_type: "ohlcv_mid"
+    timeframe: "H1"
+    timezone: "UTC"
+    path: "data/historical/USD_JPY_H1_ohlcv_mid_2020_2025.csv"
+    start: "2020-01-01"
+    end: "2025-12-31"
+    columns:
+      timestamp: "timestamp"
+      pair: "pair"
+      open: "open"
+      high: "high"
+      low: "low"
+      close: "close"
+      volume: "volume"
+    spread_available: false
+    commission_model: "documented_in_assumptions.md"
+    swap_model: "documented_in_assumptions.md"
+    account_currency: "USD"
+    expected_interval: "60m"
+    validation:
+      required_before_backtest: true
+      validator_command: "python scripts/validate_market_data.py --data data/historical/USD_JPY_H1_ohlcv_mid_2020_2025.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports/data_validation/USD_JPY_H1"
+    notes: "Low-confidence research data only unless realistic spread/cost assumptions are documented and stressed."

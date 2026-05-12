@@ -1,0 +1,2 @@
+pair,strategy,direction,units,entry_price,exit_price,opened_at,closed_at,exit_reason,gross_pnl,commission,swap,net_pnl
+EUR_USD,trend_pullback,long,10000.0,1.10457,1.10693,2026-01-06T02:00:00+00:00,2026-01-06T03:00:00+00:00,end_of_data,23.6,0.0,0.0,23.6
