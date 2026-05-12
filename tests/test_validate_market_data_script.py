@@ -208,3 +208,15 @@ def test_validator_cli_writes_reports(tmp_path: Path, capsys) -> None:
     assert "Status: `PASS`" in capsys.readouterr().out
     assert (output_dir / "data_quality_report.md").exists()
     assert (output_dir / "data_quality_report.csv").exists()
+
+
+def test_validator_cli_reports_missing_file_as_blocked(tmp_path: Path, capsys) -> None:
+    module = load_script_module()
+    missing_path = tmp_path / "missing.csv"
+
+    exit_code = module.main(["--data", str(missing_path), "--data-kind", "bidask_candles"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 2
+    assert "Validation blocked: data file not found" in output
+    assert "Do not use mock or synthetic data as trading evidence" in output

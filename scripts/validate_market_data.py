@@ -68,8 +68,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    data_path = Path(args.data)
+    if not data_path.exists():
+        print(f"Validation blocked: data file not found: {data_path}")
+        print("Add the real historical market data file before running validation.")
+        print("Do not use mock or synthetic data as trading evidence.")
+        return 2
     result = validate_csv(
-        Path(args.data),
+        data_path,
         data_kind=args.data_kind,
         expected_interval=(
             timedelta(minutes=args.expected_interval_minutes)

@@ -73,7 +73,7 @@ The status command prints mode, equity, positions, daily/weekly P&L, drawdown, a
 Run a CSV backtest with candle data:
 
 ```powershell
-python scripts/run_backtest.py --data data/history/EUR_USD_H1.csv --data-kind candles --strategy trend_pullback --spread-pips 1.2 --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports/backtest
+python scripts/run_backtest.py --data data/historical/EUR_USD_H1.csv --data-kind candles --strategy trend_pullback --spread-pips 1.2 --slippage-pips 0.2 --commission-per-trade 0 --swap-cost-per-trade 0 --output-dir reports/backtest
 ```
 
 Input quote CSV columns: `timestamp,pair,bid,ask`.
@@ -101,7 +101,7 @@ Use `--no-stress-costs` to skip the stress report. The script prints summary met
 Validate historical CSV data before backtesting:
 
 ```powershell
-python scripts/validate_market_data.py --data data/history/EUR_USD_H1.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports/data_validation/EUR_USD_H1
+python scripts/validate_market_data.py --data data/historical/EUR_USD_H1.csv --data-kind candles --expected-interval-minutes 60 --output-dir reports/data_validation/EUR_USD_H1
 ```
 
 Supported `--data-kind` values are `quotes`, `candles`, `bidask_candles`, and `auto`.
@@ -111,12 +111,14 @@ The validator checks required columns, timestamp parsing and timezone awareness,
 Historical datasets can also be registered in `config/data_manifest.yaml`. The manifest loader validates metadata and rejects missing data files before a campaign uses them.
 Pair symbols are normalized to the repo format (`EUR_USD`); compact symbols such as `EURUSD` are accepted by the market-data parser and manifest loader.
 
+For the first real-data milestone, follow `DATA_IMPORT.md` and place the OANDA EUR_USD H1 bid/ask candle file at `data/historical/EUR_USD_H1_bidask_2020_2025.csv`.
+
 ## Walk-Forward Validation
 
 Run walk-forward validation with candle data:
 
 ```powershell
-python scripts/run_walkforward.py --data data/history/EUR_USD_H1.csv --data-kind candles --train-window-size 500 --test-window-size 100 --step-size 100 --trend-ma-periods 10,20,50 --atr-periods 7,14 --pullback-lookbacks 2,3 --atr-multipliers 1.0,1.5,2.0 --reward-r-multiples 1.5,2.0 --output-dir reports/walkforward
+python scripts/run_walkforward.py --data data/historical/EUR_USD_H1.csv --data-kind candles --train-window-size 500 --test-window-size 100 --step-size 100 --trend-ma-periods 10,20,50 --atr-periods 7,14 --pullback-lookbacks 2,3 --atr-multipliers 1.0,1.5,2.0 --reward-r-multiples 1.5,2.0 --output-dir reports/walkforward
 ```
 
 For each window, the script trains by testing every parameter set on the in-sample window, selects the best risk-aware score, then evaluates only that selected config on the next out-of-sample window.

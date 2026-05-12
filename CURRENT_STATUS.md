@@ -1,8 +1,10 @@
 # Current Status
 
-Status: `DATA_INFRASTRUCTURE_READY`
+Current code status: `DATA_INFRASTRUCTURE_READY`
 
 Evidence status: `DATA_MISSING`
+
+Next milestone: `DATA_READY_VALIDATED`
 
 The repo can validate and load these CSV market-data kinds:
 
@@ -20,4 +22,16 @@ The backtest runner recognizes `bidask_candles` and normalizes them into mid-pri
 
 `config/data_manifest.yaml` is supported by the manifest loader for metadata validation and missing-file rejection. A full campaign matrix runner that consumes the manifest end-to-end is still not implemented.
 
-No real historical market data is present. No profitability, strategy-performance, or trading-edge claim can be made until real historical data is added and validated.
+No real historical market data is present yet. The expected first real dataset is:
+
+```text
+data/historical/EUR_USD_H1_bidask_2020_2025.csv
+```
+
+Validation command:
+
+```powershell
+python scripts\validate_market_data.py --data data\historical\EUR_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --expected-interval-minutes 60 --max-spread-pips 10 --output-dir reports\data_validation\EUR_USD_H1_bidask
+```
+
+No profitability, strategy-performance, or trading-edge claim can be made until real historical data is added and validated.

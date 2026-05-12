@@ -1,0 +1,34 @@
+symbols:
+  EUR_USD:
+    pair: "EUR_USD"
+    source: "OANDA"
+    broker_or_venue: "OANDA"
+    data_type: "bidask_candles"
+    timeframe: "H1"
+    timezone: "UTC"
+    path: "data/historical/EUR_USD_H1_bidask_2020_2025.csv"
+    start: "2020-01-01"
+    end: "2025-12-31"
+    columns:
+      timestamp: "timestamp"
+      pair: "pair"
+      bid_open: "bid_open"
+      bid_high: "bid_high"
+      bid_low: "bid_low"
+      bid_close: "bid_close"
+      ask_open: "ask_open"
+      ask_high: "ask_high"
+      ask_low: "ask_low"
+      ask_close: "ask_close"
+      volume: "volume"
+    spread_available: true
+    commission_model: "documented_in_assumptions.md"
+    swap_model: "documented_in_assumptions.md"
+    account_currency: "USD"
+    expected_interval: "60m"
+    validation:
+      required_before_backtest: true
+      expected_interval_minutes: 60
+      max_spread_pips: 10
+      max_gap_pct: 5
+      validator_command: "python scripts/validate_market_data.py --data data/historical/EUR_USD_H1_bidask_2020_2025.csv --data-kind bidask_candles --expected-interval-minutes 60 --max-spread-pips 10 --output-dir reports/data_validation/EUR_USD_H1_bidask"

@@ -5,7 +5,14 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .test-deps/
-reports/
+data/historical/*
+!data/historical/.gitkeep
+data/normalized/*
+!data/normalized/.gitkeep
+reports/*
+!reports/data_validation/
+reports/data_validation/*
+!reports/data_validation/.gitkeep
 dist/
 build/
 *.egg-info/
