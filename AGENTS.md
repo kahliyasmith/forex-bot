@@ -18,6 +18,12 @@ The bot must prioritize risk management, testability, and realistic transaction 
 - Every module must have unit tests.
 - Every strategy must include transaction costs, spread, slippage, and swap assumptions in backtests.
 
+## Backtesting standards
+
+For forex bot backtesting, never optimize only for profit. Always prioritize data quality, realistic execution, out-of-sample validation, and full reporting of failed tests.
+
+Any backtest report must include assumptions, data-quality notes, all tested configs, and an explicit warning if the result may be overfit or unrealistic.
+
 ## Preferred stack
 
 - Python
