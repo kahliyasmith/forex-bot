@@ -11,8 +11,10 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
     "PyYAML>=6.0",
-    "requests>=2.32",
 ]
+
+[project.scripts]
+forex-bot = "forex_bot.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -25,6 +27,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100

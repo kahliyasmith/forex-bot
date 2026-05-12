@@ -1,7 +1,9 @@
 pairs:
-  - symbol: EUR_USD
-    enabled: true
-  - symbol: GBP_USD
-    enabled: true
-  - symbol: USD_JPY
-    enabled: true
+  - EUR_USD
+  - GBP_USD
+  - USD_JPY
+
+max_spread_pips:
+  EUR_USD: 1.2
+  GBP_USD: 1.6
+  USD_JPY: 1.4

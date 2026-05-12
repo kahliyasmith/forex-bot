@@ -1,6 +1,7 @@
 risk:
-  account_risk_per_trade_pct: 1.0
-  max_daily_loss_pct: 3.0
-  max_drawdown_pct: 10.0
-  default_stop_loss_pips: 25
-  default_take_profit_pips: 50
+  risk_per_trade_pct: 0.25
+  max_daily_loss_pct: 1.0
+  max_weekly_loss_pct: 3.0
+  max_drawdown_pct: 8.0
+  max_open_trades: 2
+  max_leverage: 3.0
