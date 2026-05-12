@@ -101,6 +101,17 @@ class TradeHistoryRecord:
     rollover_exposure: bool = False
 
 
+@dataclass(frozen=True)
+class ReconciliationReport:
+    matched_position_ids: set[str]
+    missing_broker_position_ids: set[str]
+    extra_broker_position_ids: set[str]
+
+    @property
+    def in_sync(self) -> bool:
+        return not self.missing_broker_position_ids and not self.extra_broker_position_ids
+
+
 class Broker(ABC):
     @abstractmethod
     def get_quote(self, pair: CurrencyPair | str) -> Quote:
@@ -121,3 +132,11 @@ class Broker(ABC):
     @abstractmethod
     def get_positions(self) -> list[Position]:
         """Return open positions."""
+
+    def reconcile_positions(self, internal_position_ids: set[str]) -> ReconciliationReport:
+        broker_position_ids = {position.id for position in self.get_positions()}
+        return ReconciliationReport(
+            matched_position_ids=broker_position_ids & internal_position_ids,
+            missing_broker_position_ids=internal_position_ids - broker_position_ids,
+            extra_broker_position_ids=broker_position_ids - internal_position_ids,
+        )

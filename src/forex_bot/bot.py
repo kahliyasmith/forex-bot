@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Iterable
 
 from forex_bot.broker.base import Broker, Order, OrderResult, Position
+from forex_bot.broker.demo import DemoBrokerAdapter
 from forex_bot.broker.live import LiveBrokerAdapter
 from forex_bot.config import BotConfig, BrokerType
 from forex_bot.data.models import CurrencyPair, Quote, to_decimal
@@ -282,6 +283,8 @@ def classify_session(timestamp: datetime) -> str:
 
 
 def create_broker(config: BotConfig) -> Broker:
+    if config.broker.type is BrokerType.DEMO:
+        return DemoBrokerAdapter()
     if config.broker.type is BrokerType.LIVE:
         return LiveBrokerAdapter()
     return PaperBroker()

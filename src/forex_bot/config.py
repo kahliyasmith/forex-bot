@@ -27,6 +27,7 @@ class BrokerType(str, Enum):
     """Supported broker adapter types."""
 
     PAPER = "paper"
+    DEMO = "demo"
     LIVE = "live"
 
 
