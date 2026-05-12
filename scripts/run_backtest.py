@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -26,6 +27,7 @@ from forex_bot.strategies import TrendPullbackParameters, TrendPullbackStrategy
 from forex_bot.strategies.base import Strategy
 
 DataKind = Literal["quotes", "candles"]
+STRESS_MULTIPLIERS = (Decimal("1"), Decimal("2"), Decimal("3"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,6 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--slippage-pips", default="0")
     parser.add_argument("--commission-per-trade", default="0")
     parser.add_argument("--swap-cost-per-trade", default="0")
+    parser.add_argument(
+        "--stress-costs",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run a 1x/2x/3x spread and slippage stress grid.",
+    )
     parser.add_argument("--trend-ma-period", type=int, default=5)
     parser.add_argument("--pullback-lookback", type=int, default=3)
     parser.add_argument("--atr-period", type=int, default=3)
@@ -69,43 +77,150 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     data_kind, market_data = load_historical_data(Path(args.data), args.data_kind)
     allowed_pairs = parse_pairs(args.pairs) or config.pairs or pairs_from_data(market_data)
+    base_spread_pips = (
+        to_decimal(args.spread_pips) if data_kind == "candles" else average_quote_spread(market_data)
+    )
+    base_slippage_pips = to_decimal(args.slippage_pips)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    result, report = run_backtest(
+        args=args,
+        data_kind=data_kind,
+        market_data=market_data,
+        allowed_pairs=allowed_pairs,
+        spread_pips=base_spread_pips,
+        slippage_pips=base_slippage_pips,
+    )
+    write_backtest_trades(result.trades, output_dir / "backtest_trades.csv", args.strategy)
+    report.export_json(output_dir / "performance_report.json")
+    report.export_csv(output_dir)
+
+    if args.stress_costs:
+        stress_rows = run_cost_stress_grid(
+            args=args,
+            data_kind=data_kind,
+            market_data=market_data,
+            allowed_pairs=allowed_pairs,
+            base_spread_pips=base_spread_pips,
+            base_slippage_pips=base_slippage_pips,
+        )
+        write_cost_stress_report(stress_rows, output_dir)
+        print(f"Stress regimes: {len(stress_rows)}")
+
+    print_summary(result, report)
+    return 0
+
+
+def run_backtest(
+    *,
+    args: argparse.Namespace,
+    data_kind: DataKind,
+    market_data: list[Quote] | list[Candle],
+    allowed_pairs: list[str],
+    spread_pips: Decimal,
+    slippage_pips: Decimal,
+) -> tuple[BacktestResult, object]:
     strategy = build_strategy(args.strategy, args, allowed_pairs)
     engine = BacktestEngine(
         BacktestConfig(
             initial_balance=to_decimal(args.initial_balance),
             units=to_decimal(args.units),
             commission_per_trade=to_decimal(args.commission_per_trade),
-            slippage_pips=to_decimal(args.slippage_pips),
+            slippage_pips=slippage_pips,
             swap_cost_per_trade=to_decimal(args.swap_cost_per_trade),
         )
     )
 
     if data_kind == "candles":
-        result = engine.run_candles(
-            market_data,
-            strategy,
-            spread_pips=to_decimal(args.spread_pips),
-        )
-        assumed_spread_pips = to_decimal(args.spread_pips)
+        result = engine.run_candles(market_data, strategy, spread_pips=spread_pips)
+        report_spread_pips = spread_pips
     else:
-        result = engine.run(market_data, strategy)
-        assumed_spread_pips = average_quote_spread(market_data)
+        base_quote_spread = average_quote_spread(market_data)
+        spread_multiplier = spread_pips / base_quote_spread if base_quote_spread else Decimal("1")
+        stressed_quotes = scale_quote_spreads(market_data, spread_multiplier)
+        result = engine.run(stressed_quotes, strategy)
+        report_spread_pips = average_quote_spread(stressed_quotes)
 
     report_trades = report_trades_from_backtest(
         result.trades,
         strategy_name=args.strategy,
-        spread_pips=assumed_spread_pips,
-        slippage_pips=to_decimal(args.slippage_pips),
+        spread_pips=report_spread_pips,
+        slippage_pips=slippage_pips,
     )
-    report = build_performance_report(equity_curve=result.equity_curve, trades=report_trades)
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_backtest_trades(result.trades, output_dir / "backtest_trades.csv", args.strategy)
-    report.export_json(output_dir / "performance_report.json")
-    report.export_csv(output_dir)
+    return result, build_performance_report(equity_curve=result.equity_curve, trades=report_trades)
 
-    print_summary(result, report)
-    return 0
+
+def run_cost_stress_grid(
+    *,
+    args: argparse.Namespace,
+    data_kind: DataKind,
+    market_data: list[Quote] | list[Candle],
+    allowed_pairs: list[str],
+    base_spread_pips: Decimal,
+    base_slippage_pips: Decimal,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for spread_multiplier in STRESS_MULTIPLIERS:
+        for slippage_multiplier in STRESS_MULTIPLIERS:
+            spread_pips = base_spread_pips * spread_multiplier
+            slippage_pips = base_slippage_pips * slippage_multiplier
+            result, report = run_backtest(
+                args=args,
+                data_kind=data_kind,
+                market_data=market_data,
+                allowed_pairs=allowed_pairs,
+                spread_pips=spread_pips,
+                slippage_pips=slippage_pips,
+            )
+            rows.append(
+                cost_stress_row(
+                    result=result,
+                    report=report,
+                    spread_multiplier=spread_multiplier,
+                    slippage_multiplier=slippage_multiplier,
+                    spread_pips=spread_pips,
+                    slippage_pips=slippage_pips,
+                )
+            )
+    return rows
+
+
+def cost_stress_row(
+    *,
+    result: BacktestResult,
+    report,
+    spread_multiplier: Decimal,
+    slippage_multiplier: Decimal,
+    spread_pips: Decimal,
+    slippage_pips: Decimal,
+) -> dict[str, object]:
+    return {
+        "regime": f"spread_{spread_multiplier}x_slippage_{slippage_multiplier}x",
+        "spread_multiplier": spread_multiplier,
+        "slippage_multiplier": slippage_multiplier,
+        "spread_pips": spread_pips,
+        "slippage_pips": slippage_pips,
+        "trades": len(result.trades),
+        "total_return": report.total_return,
+        "max_drawdown": report.max_drawdown,
+        "win_rate": report.win_rate,
+        "profit_factor": report.profit_factor,
+        "expectancy": report.expectancy,
+        "average_trade": report.average_trade,
+        "average_win": report.average_win,
+        "average_loss": report.average_loss,
+        "average_spread_paid": report.average_spread_paid,
+        "average_slippage": report.average_slippage,
+    }
+
+
+def write_cost_stress_report(rows: list[dict[str, object]], output_dir: Path) -> None:
+    write_csv(output_dir / "cost_stress_report.csv", rows)
+    (output_dir / "cost_stress_report.json").write_text(
+        json.dumps(decimal_to_json(rows), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 def load_historical_data(path: Path, data_kind: str = "auto") -> tuple[DataKind, list[Quote] | list[Candle]]:
@@ -190,6 +305,14 @@ def average_quote_spread(quotes: list[Quote] | list[Candle]) -> Decimal:
     if not quote_rows:
         return Decimal("0")
     return sum((quote.spread_pips for quote in quote_rows), Decimal("0")) / Decimal(len(quote_rows))
+
+
+def scale_quote_spreads(quotes: list[Quote] | list[Candle], spread_multiplier: Decimal) -> list[Quote]:
+    return [
+        Quote.from_mid(quote.pair, quote.mid, quote.spread_pips * spread_multiplier, quote.timestamp)
+        for quote in quotes
+        if isinstance(quote, Quote)
+    ]
 
 
 def report_trades_from_backtest(

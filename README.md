@@ -84,5 +84,11 @@ Outputs:
 - `backtest_trades.csv`: full trade ledger with entry, exit, P&L, commission, and swap.
 - `performance_report.json`: full performance report.
 - `trades.csv`, `equity_curve.csv`, `summary.csv`, `performance_by_pair.csv`, `performance_by_session.csv`, and `performance_by_strategy.csv`.
+- `cost_stress_report.json` and `cost_stress_report.csv`: comparison table for spread/slippage stress regimes.
 
-The script prints summary metrics after the run. The current `trend_pullback` strategy is candle-driven, so candle data is the practical input for that strategy.
+By default, the script also reruns the backtest across a 3x3 transaction-cost grid:
+
+- spread: normal, 2x, 3x
+- slippage: normal, 2x, 3x
+
+Use `--no-stress-costs` to skip the stress report. The script prints summary metrics after the run. The current `trend_pullback` strategy is candle-driven, so candle data is the practical input for that strategy.

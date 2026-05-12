@@ -125,5 +125,48 @@ def test_run_backtest_script_writes_outputs(tmp_path: Path, capsys) -> None:
     assert "Trades: 1" in output
     assert (output_dir / "backtest_trades.csv").exists()
     assert (output_dir / "equity_curve.csv").exists()
+    assert (output_dir / "cost_stress_report.csv").exists()
+    assert (output_dir / "cost_stress_report.json").exists()
     assert report["average_spread_paid"] == 1.0
     assert report["average_slippage"] == 0.2
+
+
+def test_run_backtest_script_writes_cost_stress_grid(tmp_path: Path) -> None:
+    module = load_script_module()
+    config_path = tmp_path / "bot.yaml"
+    data_path = tmp_path / "candles.csv"
+    output_dir = tmp_path / "out"
+    write_config(config_path)
+    write_candles(data_path)
+
+    module.main(
+        [
+            "--config",
+            str(config_path),
+            "--data",
+            str(data_path),
+            "--data-kind",
+            "candles",
+            "--output-dir",
+            str(output_dir),
+            "--trend-ma-period",
+            "3",
+            "--atr-period",
+            "2",
+            "--pullback-lookback",
+            "2",
+            "--spread-pips",
+            "1.0",
+            "--slippage-pips",
+            "0.2",
+        ]
+    )
+
+    rows = json.loads((output_dir / "cost_stress_report.json").read_text(encoding="utf-8"))
+
+    assert len(rows) == 9
+    assert rows[0]["regime"] == "spread_1x_slippage_1x"
+    assert rows[-1]["regime"] == "spread_3x_slippage_3x"
+    assert rows[-1]["spread_pips"] == 3.0
+    assert rows[-1]["slippage_pips"] == 0.6
+    assert "profit_factor" in rows[-1]
